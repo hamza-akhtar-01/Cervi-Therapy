@@ -109,6 +109,7 @@ export default function PoseCamera() {
   const [repCount, setRepCount] = useState(0);
   const [holdTimer, setHoldTimer] = useState(3);
   const [calibrationCountdown, setCalibrationCountdown] = useState(3);
+  const [earlyReleaseWarning, setEarlyReleaseWarning] = useState(false);
 
   const [sessionReports, setSessionReports] = useState<Record<ExerciseType, ExerciseReport>>({
     FLEXION: { repsCompleted: 0, compensationsCount: 0, holdTimeSeconds: 0 },
@@ -433,6 +434,22 @@ export default function PoseCamera() {
             playTone(587.33, "sine", 0.1);
             speakFeedback("Hold pressure. Keep steady.");
             setAppState("HOLDING");
+          } else if (!isContacting && currentState === "HOLDING") {
+            // Premature release: cancel the rep immediately
+            playTone(220, "sawtooth", 0.25);
+            speakFeedback("Contact lost. Hold the full duration without releasing.");
+            setHoldTimer(3);
+            setAppState("NEUTRAL");
+            setEarlyReleaseWarning(true);
+            setTimeout(() => setEarlyReleaseWarning(false), 3000);
+
+            setSessionReports((prev) => ({
+              ...prev,
+              [currentExRef.current]: {
+                ...prev[currentExRef.current],
+                compensationsCount: prev[currentExRef.current].compensationsCount + 1,
+              },
+            }));
           } else if (!isContacting && currentState === "RETURNING") {
             isCooldownRef.current = true;
             playTone(880, "triangle", 0.25);
@@ -735,6 +752,13 @@ export default function PoseCamera() {
         {isCompensating && (
           <div className="absolute top-4 right-4 bg-amber-500/90 text-white text-xs font-bold py-1.5 px-3 rounded-full backdrop-blur shadow animate-bounce">
             ⚠️ Form Warning: Keep Shoulders Level
+          </div>
+        )}
+
+        {/* Premature Hand Release Badge */}
+        {earlyReleaseWarning && (
+          <div className="absolute top-14 right-4 bg-red-600/95 text-white text-xs font-bold py-1.5 px-3 rounded-full backdrop-blur shadow animate-bounce z-20">
+            ⚠️ Contact Lost: Rep Cancelled
           </div>
         )}
 
